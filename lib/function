@@ -1,0 +1,68 @@
+#!/bin/bash
+#
+# CentOS Diagnosis Tool, Version 0.1
+# +-----------------------------------------------------------+
+# |  Maintainer  | Son Han Gi     | crisis51526@gmail.com     |
+# +-----------------------------------------------------------+
+#
+
+ELK_SERVER=192.168.56.101
+
+HOSTNAME=$(hostname)
+OS_NAME=$(sed -ne "{ /^PRETTY_NAME[ \t]*=/ p; }" /etc/*release* | awk -F= '{ print $2 }' | sed s/\"//g)
+IP_ADDR=$(hostname -I | sed s/\ /,/g | sed s/,$//)
+USE_ELK="True"
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+function start_diagnosis() {
+        echo "============================= "$1" Start ============================"
+}
+
+function end_diagnosis() {
+        echo "============================= "$1" End  ============================="
+        echo
+}
+
+function print_good() {
+        echo -e ${GREEN}"[Good]"${NC} $1
+	if [ "$USE_ELK" == "True" ]; then
+		send_elasticsearch "$2" "Good" "$1"
+	fi
+}
+
+function print_weak() {
+        echo -e ${RED}"[Weak]"${NC} $1
+	if [ "$USE_ELK" == "True" ]; then
+		send_elasticsearch "$2" "Weak" "$1"
+	fi
+}
+
+function print_info() {
+        echo -e ${BLUE}"[Info]"${NC} $1
+	if [ "$USE_ELK" == "True" ]; then
+		send_elasticsearch "$2" "Info" "$1"
+	fi
+}
+
+function send_elasticsearch() {
+	DATE_NOW=$(date +"%Y-%m-%d-%H-%M-%S")
+	VUL_ITEM=$1
+	RESULT_CODE=$2
+	MESSAGES=$3
+
+	curl --silent -H "Content-Type: application/json" \
+		-X POST "http://${ELK_SERVER}:9200/diagnosis/_doc?pretty" \
+		-d '{ 
+			"timestamp": "'"${DATE_NOW}"'",
+			"ip_addr": "'"${IP_ADDR}"'",
+			"hostname": "'"${HOSTNAME}"'",
+			"os_version": "'"${OS_NAME}"'",
+			"vul_item": "'"${VUL_ITEM}"'",
+			"result_code": "'"${RESULT_CODE}"'",
+			"messages": "'"${MESSAGES}"'"
+		}' >/dev/null
+}
